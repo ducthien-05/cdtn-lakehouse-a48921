@@ -1,2 +1,26 @@
-AGENTS.md
-/docs
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Source data and generated datasets
+/data/
+*.csv
+*.parquet
+*.avro
+/checkpoints/
+/warehouse/
+/reports/
+
+# Python and dbt artifacts
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+/target/
+/dbt_packages/
+/logs/
+
+# Editor and system files
+.DS_Store
+.vscode/
