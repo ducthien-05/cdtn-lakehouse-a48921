@@ -17,6 +17,7 @@
 | D09 | Superset đọc Gold sau khi dbt hoàn tất và tests đạt. | Không hứa dashboard thời gian thực; đo độ trễ đến Bronze và Gold riêng. |
 | D10 | Airflow, Nessie, Prometheus/Grafana, Great Expectations là phần mở rộng. | Không để hạ tầng mở rộng cản luồng lõi. |
 | D11 | Danh sách 10 repo ở architecture.md là nguồn tham khảo chọn lọc. | Áp dụng ý tưởng phù hợp sau khi đọc mã/tài liệu liên quan, kiểm tra phiên bản/giấy phép; không sao chép toàn bộ kiến trúc. |
+| D12 | DDL PostgreSQL nguồn gồm đúng 8 bảng trong schema olist, giữ tên cột CSV; khóa order_reviews là (review_id, order_id). Products giữ product_category_name nullable và không có FK cứng sang bảng dịch. | Profiling CSV thật ngày 30/10/2026: review_id lặp 814 dòng, 610 products thiếu danh mục và 13 products thuộc 2 danh mục chưa dịch. Bảng nguồn đối soát 1:1 với CSV; chuẩn hóa tên cột và danh mục ở Silver/Gold. Xem docs/source-schema.md và sql/001_olist_source.sql. Chưa xác nhận DDL chạy trên PostgreSQL. |
 
 Các quyết định D02, D03, D04 và D06 cập nhật phạm vi cũ 9 CSV/13 câu hỏi theo yêu cầu ngày 29/10/2026 và câu trả lời mới nhất: “CDC bảng nghiệp vụ, nạp 8 bảng CSV trừ geolocation”.
 
@@ -33,9 +34,11 @@ P01–P04 là **quyết định đã chốt**, không còn là “phương án c
 
 ## 3. Câu hỏi kỹ thuật còn mở
 
+O01 (schema nguồn và khóa) đã được chốt ở D12 sau profiling 8 CSV thật. DDL đã viết nhưng cần thử tạo/nạp PostgreSQL trước khi đánh dấu mốc P01 đạt.
+
 | ID | Câu hỏi cần giải quyết | Khi nào chốt |
 |---|---|---|
-| O01 | Kiểu cột, khóa chính/khóa ghép, ràng buộc và thứ tự nạp cho 8 bảng sau profiling cụ thể là gì? Review ID có duy nhất trên dữ liệu thực không; nếu không, khóa ổn định nào dùng cho CDC? | Trước DDL/loader. Phạm vi 8 bảng và 7 bảng CDC đã chốt ở D02/D06. |
+
 | O02 | Converter, topic naming, tombstone, snapshot mode, publication và quyền PostgreSQL cho Debezium cấu hình thế nào? | Trước khi đăng ký connector. |
 | O03 | Schema Bronze đầy đủ và quy tắc sắp thứ tự sự kiện cùng khóa là gì? Topic/partition/offset định danh bản ghi Kafka; cần kiểm tra metadata source để phân xử update/delete. | Trước Spark stream và Silver. |
 | O04 | Silver xử lý sự kiện lặp, update/delete và eventual consistency ra sao; model nào dùng full build, model nào dùng incremental/merge? | Trước dbt Silver/Gold. |

@@ -225,7 +225,9 @@ def profile_directory(data_dir: Path) -> dict:
                         if not value:
                             stats["empty"] += 1
                             continue
-                        if kind != "text":
+                        if kind == "text":
+                            stats["max_length"] = max(stats.get("max_length", 0), len(value))
+                        else:
                             try:
                                 parsed = parse_value(value, kind)
                             except (ValueError, InvalidOperation, OverflowError):
@@ -233,6 +235,15 @@ def profile_directory(data_dir: Path) -> dict:
                                 continue
                             low, high = bounds.get(column, (parsed, parsed))
                             bounds[column] = (min(low, parsed), max(high, parsed))
+                            if kind == "decimal":
+                                _, digits, exponent = parsed.as_tuple()
+                                stats["max_integer_digits"] = max(
+                                    stats.get("max_integer_digits", 0),
+                                    max(1, len(digits) + exponent),
+                                )
+                                stats["max_scale"] = max(
+                                    stats.get("max_scale", 0), max(0, -exponent)
+                                )
 
                     for position, key in enumerate(spec["keys"]):
                         values = tuple(clean[column] for column in key)

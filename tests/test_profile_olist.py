@@ -65,6 +65,12 @@ class ProfileOlistTests(unittest.TestCase):
             self.assertEqual(
                 report["tables"]["order_items"]["columns"]["price"]["min"], "10.50"
             )
+            self.assertEqual(
+                report["tables"]["order_items"]["columns"]["price"]["max_scale"], 2
+            )
+            self.assertEqual(
+                report["tables"]["customers"]["columns"]["customer_id"]["max_length"], 2
+            )
 
     def test_duplicate_and_orphan_are_reported_without_dropping_rows(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

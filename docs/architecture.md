@@ -1,6 +1,6 @@
 # Kiến trúc hệ thống CĐTN Lakehouse
 
-**Trạng thái:** Thiết kế đã thống nhất về phạm vi và hướng triển khai, cập nhật ngày 29/10/2026. Chưa xác nhận dịch vụ hoặc pipeline đã chạy thành công.
+**Trạng thái:** Thiết kế đã thống nhất về phạm vi và hướng triển khai, cập nhật ngày 30/10/2026. Chưa xác nhận dịch vụ hoặc pipeline đã chạy thành công.
 
 ## 1. Mục tiêu, dữ liệu và câu hỏi
 
@@ -59,6 +59,8 @@ MinIO lưu data/metadata files của Iceberg Bronze, Silver và Gold. Một Iceb
 | dbt/Trino Gold | Silver → Iceberg Gold | Xây fact/dimension và KPI cho 10 câu hỏi, với grain/bộ lọc/thời gian xác định. |
 | Superset | Gold → dashboard | Hiển thị kết quả sau mỗi lần chạy dbt thành công; không cam kết thời gian thực. |
 
+PostgreSQL nguồn giữ schema olist với 8 bảng và tên cột theo CSV để nạp/đối soát trực tiếp. Bảng dịch danh mục không được dùng làm FK cứng của products vì CSV thật có 13 sản phẩm thuộc hai danh mục chưa dịch; xử lý bằng LEFT JOIN ở Silver/Gold. order_reviews dùng khóa ghép (review_id, order_id) vì review_id lặp. Chi tiết và DDL ở docs/source-schema.md và sql/001_olist_source.sql.
+
 Iceberg áp dụng cho **các bảng được lưu bền vững ở cả ba tầng** để Spark/Trino cùng đọc được, quản lý snapshot và hỗ trợ xây lại/đối soát. Không bắt mọi model dbt trung gian thành bảng: model chỉ dùng để tổ chức SQL có thể là view hoặc ephemeral. Silver và Gold là các bảng Iceberg materialized; chiến lược dbt table/full refresh hay incremental/merge sẽ chọn theo từng model sau thử nghiệm với phiên bản cố định. Với Olist cỡ nhỏ, ưu tiên cách xây lại dễ kiểm chứng trước; sau đó đo chi phí và thử incremental khi cần xử lý CDC hiệu quả. Xóa ở Silver phải được áp dụng vào trạng thái hiện tại, đồng thời Bronze vẫn giữ sự kiện xóa.
 
 ## 4. Chất lượng, nhất quán và phục hồi
@@ -77,6 +79,8 @@ Tách Compose thành foundation (PostgreSQL nguồn, MinIO, JDBC catalog databas
 Trong bản lõi, chạy dbt bằng lệnh hoặc script có trình tự: kiểm tra Bronze đã đến mốc dữ liệu, build Silver → test → build Gold → test → cho dashboard sử dụng. Ghi mã thoát và log; không báo thành công khi một bước lỗi. Airflow, Nessie, Prometheus/Grafana và Great Expectations chỉ thêm sau khi luồng lõi chạy và đã có bằng chứng kiểm chứng.
 
 ## 6. Thứ tự triển khai và mốc kiểm chứng
+
+Bước profiling 8 CSV đã thực hiện ngày 30/10/2026 và DDL nguồn đã được viết. Mốc nạp/đối soát PostgreSQL vẫn chưa thực hiện; số liệu và quyết định khóa nằm trong docs/source-schema.md.
 
 1. Profiling cả 8 CSV: cột, kiểu, khóa ứng viên, quan hệ, null, trùng và phạm vi thời gian. Thiết kế DDL PostgreSQL cho **đủ 8 bảng**, thứ tự nạp theo phụ thuộc và chính sách xử lý lỗi; không tạo bảng geolocation.
 2. Viết loader, nạp đủ 8 bảng vào PostgreSQL và đối soát từng tệp. Kiểm tra chạy lại không nhân đôi. Tạo bản sao/mốc nguồn để phân biệt dữ liệu gốc với thay đổi mô phỏng.

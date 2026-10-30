@@ -1,6 +1,6 @@
 # Profiling nguồn Olist trước khi thiết kế PostgreSQL
 
-**Trạng thái:** Công cụ profiling đã có, chưa chạy trên CSV thật. Quyết định D02/D06 yêu cầu nạp 8 CSV vào PostgreSQL và CDC 7 bảng nghiệp vụ; geolocation nằm ngoài phạm vi lõi.
+**Trạng thái:** Đã chạy trên 8 CSV thật ngày 30/10/2026; báo cáo hợp lệ tại data/olist_profile.json. Kết quả DDL và quyết định khóa được ghi trong docs/source-schema.md. Quyết định D02/D06 yêu cầu nạp 8 CSV vào PostgreSQL và CDC 7 bảng nghiệp vụ; geolocation nằm ngoài phạm vi lõi.
 
 ## Nguồn và phạm vi
 
@@ -27,7 +27,7 @@ Từ /home/thienduc/cdtn-lakehouse:
 python3 scripts/profile_olist.py --data-dir data/raw --output data/olist_profile.json
 ~~~
 
-Nếu CSV ở nơi khác, thay data/raw bằng đường dẫn thư mục đó. File báo cáo JSON nằm trong data/ (đã ignore trong Git), gồm SHA-256 của từng nguồn, header, số dòng, số ô trống, số giá trị không đúng loại dự kiến, khoảng giá trị số/thời gian, số dòng trùng cho khóa ứng viên và số dòng không khớp khóa ngoại. Lệnh trả mã 2 khi thiếu tệp hoặc header sai; báo cáo vẫn được ghi để xem lỗi. Trường complete chỉ có nghĩa đủ tệp và header hợp lệ, **không** có nghĩa dữ liệu đã đạt mọi quy tắc chất lượng.
+Nếu CSV ở nơi khác, thay data/raw bằng đường dẫn thư mục đó. File báo cáo JSON nằm trong data/ (đã ignore trong Git), gồm SHA-256 của từng nguồn, header, số dòng, số ô trống, độ dài text tối đa, precision/scale số thập phân, số giá trị không đúng loại dự kiến, khoảng giá trị số/thời gian, số dòng trùng cho khóa ứng viên và số dòng không khớp khóa ngoại. Lệnh trả mã 2 khi thiếu tệp hoặc header sai; báo cáo vẫn được ghi để xem lỗi. Trường complete chỉ có nghĩa đủ tệp và header hợp lệ, **không** có nghĩa dữ liệu đã đạt mọi quy tắc chất lượng.
 
 Các kiểu cột và khóa trong script là **giả thuyết cần kiểm chứng**. Đặc biệt, review_id có thể không duy nhất; script kiểm tra cả review_id và cặp review_id + order_id, không âm thầm bỏ dòng. Zip code prefix được đọc như văn bản để không mất số 0 đầu.
 

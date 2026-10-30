@@ -11,7 +11,7 @@
 
 ## Nguồn quyết định và cách làm việc
 
-- Đọc docs/architecture.md và docs/decisions.md trước khi thay đổi kiến trúc; khi được tạo, docs/business-questions.md và docs/kpi-dictionary.md lưu câu hỏi, grain và công thức chi tiết. Nếu yêu cầu mới thay đổi quyết định cũ, cập nhật các tài liệu liên quan cùng lúc.
+- Đọc docs/architecture.md và docs/decisions.md trước khi thay đổi kiến trúc; đọc docs/source-schema.md và sql/001_olist_source.sql trước khi sửa bảng nguồn PostgreSQL; khi được tạo, docs/business-questions.md và docs/kpi-dictionary.md lưu câu hỏi, grain và công thức chi tiết. Nếu yêu cầu mới thay đổi quyết định cũ, cập nhật các tài liệu liên quan cùng lúc.
 - Danh sách 10 GitHub repo trong docs/architecture.md là nguồn tham khảo chọn lọc. Đọc đúng phần liên quan, kiểm tra phiên bản và giấy phép khi dùng ý tưởng hoặc mã; không sao chép toàn bộ kiến trúc của repo khác.
 - Trước CDC, thiết kế schema và loader cho cả 8 bảng PostgreSQL, đối chiếu số dòng/khóa/quan hệ và xử lý lỗi dữ liệu. Chỉ sau đó cấu hình Debezium cho 7 bảng nghiệp vụ; bắt đầu kiểm chứng luồng dọc với orders, order_items và Q01 nhưng không bỏ qua bước nạp đủ 8 bảng.
 - Mỗi KPI cần định nghĩa grain, khóa, tập bản ghi hợp lệ, mốc thời gian, nguồn cột, cách xử lý thiếu/trùng và phép đối soát trước khi viết Gold SQL.
