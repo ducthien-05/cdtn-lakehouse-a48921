@@ -13,7 +13,7 @@
 /reports/
 
 # Python and dbt artifacts
-.venv/
+/venv-cdtn/
 __pycache__/
 *.py[cod]
 .pytest_cache/

@@ -1,9 +1,3 @@
--- Olist source schema: eight CSV-backed tables, before Debezium CDC.
--- Apply once to a fresh PostgreSQL database with psql -v ON_ERROR_STOP=1 -f sql/001_olist_source.sql.
--- Column names and order intentionally mirror the CSV headers for direct \copy loading.
--- Source timestamps contain no timezone; use TIMESTAMP WITHOUT TIME ZONE.
--- PostgreSQL stores source rows only; do not add generated analytics columns here.
-
 BEGIN;
 
 CREATE SCHEMA IF NOT EXISTS olist;

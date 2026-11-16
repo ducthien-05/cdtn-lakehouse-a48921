@@ -1,6 +1,6 @@
 # PostgreSQL source schema từ 8 CSV Olist
 
-**Trạng thái:** DDL đã thiết kế từ 8 CSV thật và báo cáo data/olist_profile.json ngày 30/10/2026; chưa chạy trên PostgreSQL. File thực thi: sql/001_olist_source.sql. Dữ liệu nguồn và JSON profiling nằm trong data/ và không được commit.
+**Trạng thái:** DDL đã thiết kế từ 8 CSV thật và báo cáo data/olist_profile.json ngày 30/10/2026. Schema 8 bảng/cột hiện có trên PostgreSQL; loader đã commit thành công và kết quả nạp đã được kiểm tra độc lập bằng truy vấn chỉ đọc ngày 01/11/2026. File DDL: sql/001_olist_source.sql. Dữ liệu nguồn và JSON profiling nằm trong data/ và không được commit.
 
 ## Cơ sở thiết kế
 
@@ -21,6 +21,22 @@ Các FK customers → orders, orders → order_items/payments/reviews, products/
 
 Giá trị số tiền lớn nhất là 13.664,08 ở payment_value; cả price, freight_value và payment_value có tối đa 2 chữ số thập phân. numeric(12,2) có dư địa cho dữ liệu generator. Timestamps trong CSV không có múi giờ nên dùng timestamp without time zone; không giả định chúng đã được chuyển sang UTC. ZIP được giữ dạng varchar(5) để không mất số 0 đầu.
 
+## Quan hệ giữa các bảng
+
+Bảng dưới mô tả quan hệ từ bảng con đến bảng cha trong DDL nguồn. Bội số là khả năng được DDL cho phép, không khẳng định mỗi bản ghi nguồn đều có đủ bản ghi con.
+
+| Bảng con.cột | Bảng cha.cột | Ràng buộc trong PostgreSQL | Bội số |
+|---|---|---|---|
+| orders.customer_id | customers.customer_id | FK (REFERENCES) | 1 customer → nhiều orders |
+| order_items.order_id | orders.order_id | FK (REFERENCES) | 1 order → nhiều items |
+| order_items.product_id | products.product_id | FK (REFERENCES) | 1 product → nhiều items |
+| order_items.seller_id | sellers.seller_id | FK (REFERENCES) | 1 seller → nhiều items |
+| order_payments.order_id | orders.order_id | FK (REFERENCES) | 1 order → nhiều payments |
+| order_reviews.order_id | orders.order_id | FK (REFERENCES) | 1 order → nhiều reviews |
+| products.product_category_name | product_category_name_translation.product_category_name | Liên kết logic bằng LEFT JOIN; không có FK | 1 danh mục đã dịch → nhiều products |
+
+products.product_category_name được phép NULL; FK nếu được thêm sẽ không bị ảnh hưởng bởi 610 giá trị NULL. Tuy nhiên, 13 products có tên danh mục chưa xuất hiện trong bảng dịch nên FK cứng sẽ chặn việc nạp nguyên trạng 8 CSV. Quan hệ này được giữ ở mức logic tại nguồn và cần xử lý tên chưa dịch ở Silver/Gold.
+
 ## Điều chỉnh so với sơ đồ dbdiagram.io
 
 - Giữ **tên bảng và cột giống CSV** ở PostgreSQL nguồn để nạp/đối soát trực tiếp: order_payments thay vì payments, order_reviews thay vì reviews, và hai cột product_name_lenght/product_description_lenght giữ đúng chính tả gốc. Tên được sửa ở Silver.
@@ -30,16 +46,40 @@ Giá trị số tiền lớn nhất là 13.664,08 ở payment_value; cả price,
 - review_answer_timestamp cho phép NULL để generator có thể tạo review trước rồi thêm thời điểm trả lời sau; CSV lịch sử hiện không thiếu trường này.
 - payment_installments cho phép 0; các số tiền và kích thước dùng CHECK không âm. order_status không dùng PostgreSQL enum để generator có thể thử trạng thái mới có kiểm soát sau này; những KPI lõi phải lọc giá trị thực tế theo từ điển KPI.
 
-## Nạp dữ liệu và đối soát ở bước kế tiếp
+## Nạp dữ liệu và đối soát
 
 1. Khởi động PostgreSQL nguồn riêng của CĐTN, tạo database và áp DDL một lần trên database mới.
 2. Nạp theo thứ tự: bảng dịch danh mục, customers, sellers, products, orders, order_items, order_payments, order_reviews.
 3. Dùng COPY/psql \copy với CSV HEADER và quy tắc chuyển ô trống thành NULL; loader phải dừng khi lỗi, ghi số dòng và chỉ báo thành công khi 8 bảng đối soát đúng các số trên.
 4. Chạy lại loader trên database đã có phải có chiến lược rõ ràng (staging/transaction hoặc reset có chủ đích), không âm thầm nhân đôi.
-5. Sau khi nạp đủ 8 bảng mới tạo Debezium snapshot cho 7 bảng nghiệp vụ; bảng dịch danh mục đi theo batch.
+5. Sau khi nạp đủ 8 bảng mới tạo Debezium snapshot cho 7 bảng nghiệp vụ; bảng dịch danh mục đi theo Spark batch JDBC đến Iceberg Silver theo quyết định D16 ngày 13/11/2026.
 
 DDL không có ON DELETE CASCADE. Generator sau này chỉ thao tác trên các ID tổng hợp của chính nó: tạo parent trước child; cập nhật order_status/timestamps, review hoặc payment; khi thử delete thì xóa child trước parent. Product mới chọn danh mục đã biết hoặc để NULL; không dựa vào thay đổi bảng dịch qua CDC. Các kịch bản này là hướng thiết kế, chưa có mã generator.
 
+## Đường dữ liệu đến lakehouse
+
+Bảy bảng nghiệp vụ đi theo PostgreSQL → Debezium/Kafka → Spark Structured Streaming → Iceberg Bronze. dbt dùng `dbt-spark` gửi SQL cho Spark để chuẩn hóa và áp dụng sự kiện vào Silver, rồi tạo Gold; Trino đọc Gold cho Superset qua cùng catalog. Đây là phân vai đã chốt ngày 13/11/2026, chưa là bằng chứng các job/model đã chạy.
+
+Riêng `olist.product_category_name_translation` không có topic CDC: Spark batch đọc qua JDBC và ghi bảng tham chiếu Iceberg Silver để model dbt sử dụng. Đối soát khóa/nội dung với PostgreSQL tại mốc batch, giữ LEFT JOIN cho 13 products chưa dịch ở mốc CSV. DDL nguồn và cách nạp 8 bảng giữ theo thiết kế đã kiểm chứng; việc chọn engine biến đổi không thay chúng.
+
 ## Kiểm chứng hiện tại
 
-Ba test của scripts/profile_olist.py với fixture nhỏ đạt, và báo cáo profiling trên 8 CSV địa phương có complete=true, 0 lỗi header/kiểu được ghi nhận. File JSON ban đầu bị hỏng cú pháp ở phần customers đã được sao lưu thành data/olist_profile.corrupt.json và tạo lại từ CSV. DDL chưa được chạy trên PostgreSQL do môi trường hiện chưa có psql hoặc image PostgreSQL; kết quả thực thi và đối soát DB sẽ được ghi sau.
+Báo cáo data/olist_profile.json từ 8 CSV cố định có complete=true, không có lỗi header/kiểu hoặc dòng CSV lỗi. SHA-256 trong báo cáo đã được đối chiếu với 8 file nguồn. scripts/profile_olist.py được giữ để kiểm tra lại nguồn khi cần. Loader đã commit và đối soát 8 bảng; truy vấn PostgreSQL chỉ đọc xác nhận số dòng từng bảng, số NULL của hai cột review, 6 FK cứng không có dòng mồ côi và 13 products thiếu bản dịch đều khớp báo cáo chuẩn.
+
+## Loader 8 CSV (đã nạp và đối soát thành công)
+
+`scripts/load_olist.py` có hai hành động:
+
+- `check` (mặc định) chỉ đọc 8 CSV trong `data/raw/` và `data/olist_profile.json`. Script profiling lại dữ liệu, so chính xác header, SHA-256, số dòng, ô trống, kiểu/min/max, khóa và quan hệ với báo cáo chuẩn; không mở kết nối PostgreSQL.
+- `load` chỉ chạy khi gọi tường minh. Cần áp `sql/001_olist_source.sql` trên database mới trước, rồi cài `requirements-loader.txt`. Script đọc `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT` từ `.env` (biến môi trường đã export được ưu tiên); `POSTGRES_HOST` là tùy chọn, mặc định `127.0.0.1`. Cổng mặc định là `5433`, khớp Compose hiện tại.
+
+~~~bash
+python3 scripts/load_olist.py check
+python3 -m pip install -r requirements-loader.txt
+# Chỉ thực hiện khi đã chủ động chuẩn bị database mới và muốn nạp dữ liệu:
+python3 scripts/load_olist.py load
+~~~
+
+`load` kiểm tra lại CSV trước khi kết nối database, xác nhận đúng 8 bảng/cột, khóa bảng trong một transaction và từ chối nếu bất kỳ bảng nguồn nào đã có dòng. Sau đó script COPY theo thứ tự FK, đổi trường CSV trống thành SQL NULL, và đối soát trong transaction: số dòng, số khóa chính phân biệt, số NULL từng cột, min/max cột số/thời gian, số quan hệ có giá trị và số FK mồ côi. Quan hệ mềm products → bảng dịch giữ đúng 13 products chưa có bản dịch. Chỉ khi mọi phép đối soát khớp profile mới commit; lỗi sẽ rollback toàn bộ. Script không tự xóa/truncate hoặc nạp chồng khi chạy lại. Có thể dùng `--data-dir`, `--profile`, `--env-file` để chọn đường dẫn khác.
+
+Ngày 01/11/2026, `check` trả về đủ 550.759 dòng, đúng profile. Lần `load` đầu dừng ở order_reviews.review_comment_title vì 2 ô chỉ chứa dấu cách; review_comment_message cũng có 27 ô chỉ chứa khoảng trắng hoặc xuống dòng. Loader đã được sửa để chuyển các ô chỉ có khoảng trắng thành NULL theo quy tắc `strip()` của profiler. Người dùng chạy lại `load` và nhận thông báo commit thành công cho cả 8 bảng. Truy vấn PostgreSQL chỉ đọc sau đó xác nhận: 71 translations, 99.441 customers, 3.095 sellers, 32.951 products, 99.441 orders, 112.650 order_items, 103.886 order_payments, 99.224 order_reviews; review_comment_title có 87.658 NULL, review_comment_message có 58.274 NULL, products thiếu danh mục có 610 NULL, quan hệ danh mục mềm có 13 dòng chưa dịch và 6 FK cứng đều có 0 dòng mồ côi.
