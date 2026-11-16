@@ -1,0 +1,29 @@
+{
+  "name": "olist-postgres-cdc",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "postgres-source",
+    "database.port": "5432",
+    "database.user": "${POSTGRES_USER}",
+    "database.password": "${POSTGRES_PASSWORD}",
+    "database.dbname": "${POSTGRES_DB}",
+    "plugin.name": "pgoutput",
+    "publication.name": "olist_cdc_pub",
+    "publication.autocreate.mode": "disabled",
+    "slot.name": "olist_cdc_slot",
+    "slot.drop.on.stop": "false",
+    "snapshot.mode": "initial",
+    "schema.include.list": "olist",
+    "table.include.list": "olist.customers,olist.sellers,olist.products,olist.orders,olist.order_items,olist.order_payments,olist.order_reviews",
+    "topic.prefix": "olist_pg",
+    "decimal.handling.mode": "string",
+    "tombstones.on.delete": "true",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "true",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true",
+    "topic.creation.default.replication.factor": "1",
+    "topic.creation.default.partitions": "1"
+  }
+}
