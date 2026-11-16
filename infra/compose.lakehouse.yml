@@ -1,4 +1,14 @@
 # Spark runner and Trino share the Iceberg JDBC catalog in the foundation stack.
+x-bronze-environment: &bronze-environment
+  BRONZE_TABLES: ${BRONZE_TABLES:-orders,order_items}
+  BRONZE_KAFKA_BOOTSTRAP_SERVERS: ${BRONZE_KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+  BRONZE_TOPIC_PREFIX: ${BRONZE_TOPIC_PREFIX:-olist_pg.olist.}
+  BRONZE_CHECKPOINT_ROOT: ${BRONZE_CHECKPOINT_ROOT:-/opt/spark/work-dir/olist-bronze-checkpoints}
+  BRONZE_TRIGGER_SECONDS: ${BRONZE_TRIGGER_SECONDS:-60}
+  BRONZE_MAX_OFFSETS_PER_TRIGGER: ${BRONZE_MAX_OFFSETS_PER_TRIGGER:-100000}
+  PYTHONPATH: /opt/olist/scripts
+  PYTHONDONTWRITEBYTECODE: "1"
+
 services:
   spark:
     image: spark:3.5.9-scala2.12-java17-python3-ubuntu
@@ -16,6 +26,7 @@ services:
         printf '\nspark.sql.catalog.lakehouse.jdbc.password %s\n' "$${ICEBERG_CATALOG_PASSWORD}" >> /tmp/spark-conf/spark-defaults.conf
         exec sleep infinity
     environment:
+      <<: *bronze-environment
       SPARK_CONF_DIR: /tmp/spark-conf
       ICEBERG_CATALOG_PASSWORD: ${ICEBERG_CATALOG_PASSWORD:?Set ICEBERG_CATALOG_PASSWORD in .env}
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
@@ -24,12 +35,58 @@ services:
       AWS_EC2_METADATA_DISABLED: "true"
     volumes:
       - ./spark/spark-defaults.conf:/opt/spark/conf-template/spark-defaults.conf:ro
+      - ../sql/004_olist_bronze.sql:/opt/olist/sql/004_olist_bronze.sql:ro
+      - ../scripts/ingest_olist_bronze.py:/opt/olist/scripts/ingest_olist_bronze.py:ro
+      - ../scripts/check_olist_bronze.py:/opt/olist/scripts/check_olist_bronze.py:ro
     healthcheck:
       test: ["CMD-SHELL", "test -s /tmp/spark-conf/spark-defaults.conf"]
       interval: 10s
       timeout: 3s
       retries: 10
       start_period: 10s
+
+  spark-bronze:
+    # Opt-in: normal `up` does not start ingestion. Explicit `up spark-bronze` enables it.
+    profiles: [bronze]
+    image: spark:3.5.9-scala2.12-java17-python3-ubuntu
+    init: true
+    restart: "no"
+    stop_grace_period: 120s
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres-catalog:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |-
+        set -e
+        mkdir -p /tmp/spark-conf
+        cp /opt/spark/conf-template/spark-defaults.conf /tmp/spark-conf/spark-defaults.conf
+        printf '\nspark.sql.catalog.lakehouse.jdbc.password %s\n' "$${ICEBERG_CATALOG_PASSWORD}" >> /tmp/spark-conf/spark-defaults.conf
+        exec /opt/spark/bin/spark-submit --driver-memory 1g /opt/olist/scripts/ingest_olist_bronze.py run
+    environment:
+      <<: *bronze-environment
+      SPARK_CONF_DIR: /tmp/spark-conf
+      ICEBERG_CATALOG_PASSWORD: ${ICEBERG_CATALOG_PASSWORD:?Set ICEBERG_CATALOG_PASSWORD in .env}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      AWS_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: "true"
+    volumes:
+      - ./spark/spark-defaults.conf:/opt/spark/conf-template/spark-defaults.conf:ro
+      - ../scripts/ingest_olist_bronze.py:/opt/olist/scripts/ingest_olist_bronze.py:ro
+      - ../scripts/check_olist_bronze.py:/opt/olist/scripts/check_olist_bronze.py:ro
+      # Mount the image's existing spark-owned work-dir; no root/chown init is needed.
+      - bronze_checkpoints:/opt/spark/work-dir
+    healthcheck:
+      test: ["CMD", "python3", "/opt/olist/scripts/ingest_olist_bronze.py", "health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 300s
 
   trino:
     image: trinodb/trino:484
@@ -47,3 +104,6 @@ services:
     volumes:
       - ./trino/catalog/iceberg.properties:/etc/trino/catalog/lakehouse.properties:ro
     # The Trino image includes its own HTTP healthcheck.
+
+volumes:
+  bronze_checkpoints:
