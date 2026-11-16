@@ -1,0 +1,49 @@
+# Spark runner and Trino share the Iceberg JDBC catalog in the foundation stack.
+services:
+  spark:
+    image: spark:3.5.9-scala2.12-java17-python3-ubuntu
+    depends_on:
+      postgres-catalog:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |-
+        set -e
+        mkdir -p /tmp/spark-conf
+        cp /opt/spark/conf-template/spark-defaults.conf /tmp/spark-conf/spark-defaults.conf
+        printf '\nspark.sql.catalog.lakehouse.jdbc.password %s\n' "$${ICEBERG_CATALOG_PASSWORD}" >> /tmp/spark-conf/spark-defaults.conf
+        exec sleep infinity
+    environment:
+      SPARK_CONF_DIR: /tmp/spark-conf
+      ICEBERG_CATALOG_PASSWORD: ${ICEBERG_CATALOG_PASSWORD:?Set ICEBERG_CATALOG_PASSWORD in .env}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      AWS_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: "true"
+    volumes:
+      - ./spark/spark-defaults.conf:/opt/spark/conf-template/spark-defaults.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /tmp/spark-conf/spark-defaults.conf"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  trino:
+    image: trinodb/trino:484
+    depends_on:
+      postgres-catalog:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      ICEBERG_CATALOG_PASSWORD: ${ICEBERG_CATALOG_PASSWORD:?Set ICEBERG_CATALOG_PASSWORD in .env}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./trino/catalog/iceberg.properties:/etc/trino/catalog/lakehouse.properties:ro
+    # The Trino image includes its own HTTP healthcheck.
