@@ -1,0 +1,8 @@
+psycopg[binary]>=3.2,<4
+python-dotenv>=1,<2
+
+# dbt client for Spark Thrift. Use Python 3.10 in venv-cdtn (see runbook).
+# These are selected pins; runtime interoperability remains to be checked.
+dbt-core==1.11.17
+dbt-spark[PyHive]==1.11.0
+PyHive[hive_pure_sasl]==0.7.0
