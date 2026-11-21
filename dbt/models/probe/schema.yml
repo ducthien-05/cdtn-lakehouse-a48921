@@ -1,0 +1,41 @@
+version: 2
+
+models:
+  - name: connection_probe
+    description: >-
+      Synthetic dbt -> Spark Thrift -> JDBC Iceberg -> MinIO probe, read by Trino.
+      Expected: three rows, IDs 1/2/3, amount total 61.50 after every build.
+      Row count, total and cross-engine values are checked separately in chat.
+    columns:
+      - name: probe_id
+        description: Synthetic row identity.
+        data_type: int
+        data_tests:
+          - not_null
+          - unique
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3]
+                quote: false
+      - name: probe_label
+        description: Identifies this connection probe.
+        data_type: string
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [spark_dbt_iceberg]
+      - name: probe_amount
+        description: Decimal value for cross-engine reconciliation.
+        data_type: decimal(12,2)
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [10.25, 20.50, 30.75]
+                quote: false
+      - name: probe_at
+        description: Synthetic timestamp interpreted in the UTC Spark session.
+        data_type: timestamp
+        data_tests:
+          - not_null

@@ -1,0 +1,32 @@
+name: olist_lakehouse
+version: '0.1.0'
+config-version: 2
+profile: olist_lakehouse
+require-dbt-version: '1.11.17'
+
+model-paths: [models]
+clean-targets: [target, dbt_packages]
+
+flags:
+  send_anonymous_usage_stats: false
+
+models:
+  olist_lakehouse:
+    +materialized: table
+    +file_format: iceberg
+    +tblproperties:
+      format-version: '2'
+      write.format.default: parquet
+      write.parquet.compression-codec: zstd
+      write.target-file-size-bytes: '134217728'
+      write.distribution-mode: none
+    probe:
+      +enabled: "{{ target.name == 'probe' }}"
+      +tags: [connection_probe]
+    silver:
+      +enabled: "{{ target.name == 'silver' }}"
+      +tags: [silver]
+      +pre-hook: "{{ olist_silver_preflight(this.identifier) }}"
+    gold:
+      +enabled: "{{ target.name == 'gold' }}"
+      +tags: [gold]

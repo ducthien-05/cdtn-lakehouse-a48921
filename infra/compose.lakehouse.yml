@@ -13,6 +13,8 @@ services:
   spark:
     image: spark:3.5.9-scala2.12-java17-python3-ubuntu
     depends_on:
+      postgres-source:
+        condition: service_healthy
       postgres-catalog:
         condition: service_healthy
       minio-init:
@@ -31,6 +33,11 @@ services:
       ICEBERG_CATALOG_PASSWORD: ${ICEBERG_CATALOG_PASSWORD:?Set ICEBERG_CATALOG_PASSWORD in .env}
       AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
       AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      POSTGRES_SOURCE_HOST: postgres-source
+      POSTGRES_SOURCE_PORT: "5432"
+      POSTGRES_SOURCE_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_SOURCE_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_SOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       AWS_REGION: us-east-1
       AWS_EC2_METADATA_DISABLED: "true"
     volumes:
@@ -38,6 +45,7 @@ services:
       - ../sql/004_olist_bronze.sql:/opt/olist/sql/004_olist_bronze.sql:ro
       - ../scripts/ingest_olist_bronze.py:/opt/olist/scripts/ingest_olist_bronze.py:ro
       - ../scripts/check_olist_bronze.py:/opt/olist/scripts/check_olist_bronze.py:ro
+      - ../scripts/ingest_olist_reference.py:/opt/olist/scripts/ingest_olist_reference.py:ro
     healthcheck:
       test: ["CMD-SHELL", "test -s /tmp/spark-conf/spark-defaults.conf"]
       interval: 10s
@@ -87,6 +95,73 @@ services:
       timeout: 5s
       retries: 8
       start_period: 300s
+
+  spark-thrift:
+    # Opt-in SQL endpoint for dbt; independent of the Bronze streaming process.
+    profiles: [transform]
+    image: spark:3.5.9-scala2.12-java17-python3-ubuntu
+    init: true
+    restart: "no"
+    working_dir: /opt/spark/work-dir
+    stop_grace_period: 120s
+    depends_on:
+      postgres-catalog:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |-
+        set -e
+        mkdir -p /tmp/spark-conf
+        cp /opt/spark/conf-template/spark-defaults.conf /tmp/spark-conf/spark-defaults.conf
+        printf '\nspark.sql.catalog.lakehouse.jdbc.password %s\n' "$${ICEBERG_CATALOG_PASSWORD}" >> /tmp/spark-conf/spark-defaults.conf
+        # Resolve the configured packages before the Thrift driver JVM starts.
+        # This constant query uses a temporary local Spark process, then exits.
+        /opt/spark/bin/spark-sql \
+          --master 'local[1]' \
+          --driver-memory 512m \
+          --conf spark.ui.enabled=false \
+          -e 'SELECT 1'
+        # Share only Iceberg/AWS/JDBC jars with the driver's JVM classloader.
+        # Avoid promoting Kafka/Hadoop transitive jars ahead of Spark's own jars.
+        mkdir -p /tmp/spark-thrift-driver-jars
+        for jar in /tmp/ivy-cache/jars/org.apache.iceberg_iceberg-spark-runtime-*.jar \
+                   /tmp/ivy-cache/jars/org.apache.iceberg_iceberg-aws-bundle-*.jar \
+                   /tmp/ivy-cache/jars/org.postgresql_postgresql-*.jar; do
+          test -f "$${jar}"
+          ln -sf "$${jar}" /tmp/spark-thrift-driver-jars/
+        done
+        exec /opt/spark/sbin/start-thriftserver.sh \
+          --master 'local[2]' \
+          --driver-memory 1g \
+          --driver-class-path '/tmp/spark-thrift-driver-jars/*' \
+          --conf spark.sql.defaultCatalog=lakehouse \
+          --conf spark.sql.session.timeZone=UTC \
+          --conf spark.ui.enabled=false \
+          --hiveconf hive.server2.thrift.bind.host=0.0.0.0 \
+          --hiveconf hive.server2.thrift.port=10000 \
+          --hiveconf hive.server2.authentication=NOSASL \
+          --hiveconf hive.server2.enable.doAs=false
+    environment:
+      SPARK_CONF_DIR: /tmp/spark-conf
+      SPARK_NO_DAEMONIZE: "1"
+      ICEBERG_CATALOG_PASSWORD: ${ICEBERG_CATALOG_PASSWORD:?Set ICEBERG_CATALOG_PASSWORD in .env}
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      AWS_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: "true"
+    ports:
+      - "127.0.0.1:10000:10000"
+    volumes:
+      - ./spark/spark-defaults.conf:/opt/spark/conf-template/spark-defaults.conf:ro
+    healthcheck:
+      # TCP readiness only; a dbt debug/build and Trino read prove SQL/catalog access.
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/127.0.0.1/10000'"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 120s
 
   trino:
     image: trinodb/trino:484
