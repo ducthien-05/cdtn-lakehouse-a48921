@@ -1,0 +1,312 @@
+version: 2
+models:
+- name: customers
+  description: Current Olist customers state from pinned Bronze CDC; delete is applied after latest-event selection.
+  columns:
+  - name: customer_id
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: customer_unique_id
+    data_type: string
+    data_tests:
+    - not_null
+  - name: customer_zip_code_prefix
+    data_type: string
+    data_tests:
+    - not_null
+  - name: customer_city
+    data_type: string
+    data_tests:
+    - not_null
+  - name: customer_state
+    data_type: string
+    data_tests:
+    - not_null
+  - name: _kafka_topic
+    data_type: string
+    data_tests: [not_null]
+  - name: _kafka_partition
+    data_type: int
+    data_tests: [not_null]
+  - name: _kafka_offset
+    data_type: bigint
+    data_tests: [not_null]
+  - name: _source_lsn
+    data_type: bigint
+  - name: _bronze_snapshot_id
+    data_type: bigint
+    data_tests: [not_null]
+- name: sellers
+  description: Current Olist sellers state from pinned Bronze CDC; delete is applied after latest-event selection.
+  columns:
+  - name: seller_id
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: seller_zip_code_prefix
+    data_type: string
+    data_tests:
+    - not_null
+  - name: seller_city
+    data_type: string
+    data_tests:
+    - not_null
+  - name: seller_state
+    data_type: string
+    data_tests:
+    - not_null
+  - name: _kafka_topic
+    data_type: string
+    data_tests: [not_null]
+  - name: _kafka_partition
+    data_type: int
+    data_tests: [not_null]
+  - name: _kafka_offset
+    data_type: bigint
+    data_tests: [not_null]
+  - name: _source_lsn
+    data_type: bigint
+  - name: _bronze_snapshot_id
+    data_type: bigint
+    data_tests: [not_null]
+- name: products
+  description: Current Olist products state from pinned Bronze CDC; nullable physical attributes preserve source values.
+  columns:
+  - name: product_id
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: product_category_name
+    data_type: string
+  - name: product_name_lenght
+    data_type: int
+  - name: product_description_lenght
+    data_type: int
+  - name: product_photos_qty
+    data_type: int
+  - name: product_weight_g
+    data_type: int
+  - name: product_length_cm
+    data_type: int
+  - name: product_height_cm
+    data_type: int
+  - name: product_width_cm
+    data_type: int
+  - name: _kafka_topic
+    data_type: string
+    data_tests: [not_null]
+  - name: _kafka_partition
+    data_type: int
+    data_tests: [not_null]
+  - name: _kafka_offset
+    data_type: bigint
+    data_tests: [not_null]
+  - name: _source_lsn
+    data_type: bigint
+  - name: _bronze_snapshot_id
+    data_type: bigint
+    data_tests: [not_null]
+- name: orders
+  description: Current Olist orders state from pinned Bronze CDC; delete is applied after latest-event selection.
+  columns:
+  - name: order_id
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: customer_id
+    data_type: string
+    data_tests:
+    - not_null
+    - relationships:
+        arguments:
+          to: ref('customers')
+          field: customer_id
+  - name: order_status
+    data_type: string
+    data_tests:
+    - not_null
+  - name: order_purchase_timestamp
+    data_type: timestamp_ntz
+    data_tests:
+    - not_null
+  - name: order_approved_at
+    data_type: timestamp_ntz
+  - name: order_delivered_carrier_date
+    data_type: timestamp_ntz
+  - name: order_delivered_customer_date
+    data_type: timestamp_ntz
+  - name: order_estimated_delivery_date
+    data_type: timestamp_ntz
+    data_tests:
+    - not_null
+  - name: _kafka_topic
+    data_type: string
+    data_tests: [not_null]
+  - name: _kafka_partition
+    data_type: int
+    data_tests: [not_null]
+  - name: _kafka_offset
+    data_type: bigint
+    data_tests: [not_null]
+  - name: _source_lsn
+    data_type: bigint
+  - name: _bronze_snapshot_id
+    data_type: bigint
+    data_tests: [not_null]
+- name: order_items
+  description: Current Olist order_items state from pinned Bronze CDC; composite key is (order_id, order_item_id).
+  columns:
+  - name: order_id
+    data_type: string
+    data_tests:
+    - not_null
+    - relationships:
+        arguments:
+          to: ref('orders')
+          field: order_id
+  - name: order_item_id
+    data_type: int
+    data_tests:
+    - not_null
+  - name: product_id
+    data_type: string
+    data_tests:
+    - not_null
+    - relationships:
+        arguments:
+          to: ref('products')
+          field: product_id
+  - name: seller_id
+    data_type: string
+    data_tests:
+    - not_null
+    - relationships:
+        arguments:
+          to: ref('sellers')
+          field: seller_id
+  - name: shipping_limit_date
+    data_type: timestamp_ntz
+    data_tests:
+    - not_null
+  - name: price
+    data_type: decimal(12,2)
+    data_tests:
+    - not_null
+  - name: freight_value
+    data_type: decimal(12,2)
+    data_tests:
+    - not_null
+  - name: _kafka_topic
+    data_type: string
+    data_tests: [not_null]
+  - name: _kafka_partition
+    data_type: int
+    data_tests: [not_null]
+  - name: _kafka_offset
+    data_type: bigint
+    data_tests: [not_null]
+  - name: _source_lsn
+    data_type: bigint
+  - name: _bronze_snapshot_id
+    data_type: bigint
+    data_tests: [not_null]
+- name: order_payments
+  description: Current Olist order payments state from pinned Bronze CDC; composite key is (order_id, payment_sequential).
+  columns:
+  - name: order_id
+    data_type: string
+    data_tests:
+    - not_null
+    - relationships:
+        arguments:
+          to: ref('orders')
+          field: order_id
+  - name: payment_sequential
+    data_type: int
+    data_tests:
+    - not_null
+  - name: payment_type
+    data_type: string
+    data_tests:
+    - not_null
+  - name: payment_installments
+    data_type: int
+    data_tests:
+    - not_null
+  - name: payment_value
+    data_type: decimal(12,2)
+    data_tests:
+    - not_null
+  - name: _kafka_topic
+    data_type: string
+    data_tests: [not_null]
+  - name: _kafka_partition
+    data_type: int
+    data_tests: [not_null]
+  - name: _kafka_offset
+    data_type: bigint
+    data_tests: [not_null]
+  - name: _source_lsn
+    data_type: bigint
+  - name: _bronze_snapshot_id
+    data_type: bigint
+    data_tests: [not_null]
+- name: order_reviews
+  description: Current Olist order reviews state from pinned Bronze CDC; composite key is (review_id, order_id).
+  columns:
+  - name: review_id
+    data_type: string
+    data_tests:
+    - not_null
+  - name: order_id
+    data_type: string
+    data_tests:
+    - not_null
+    - relationships:
+        arguments:
+          to: ref('orders')
+          field: order_id
+  - name: review_score
+    data_type: int
+    data_tests:
+    - not_null
+  - name: review_comment_title
+    data_type: string
+  - name: review_comment_message
+    data_type: string
+  - name: review_creation_date
+    data_type: timestamp_ntz
+    data_tests:
+    - not_null
+  - name: review_answer_timestamp
+    data_type: timestamp_ntz
+  - name: _kafka_topic
+    data_type: string
+    data_tests: [not_null]
+  - name: _kafka_partition
+    data_type: int
+    data_tests: [not_null]
+  - name: _kafka_offset
+    data_type: bigint
+    data_tests: [not_null]
+  - name: _source_lsn
+    data_type: bigint
+  - name: _bronze_snapshot_id
+    data_type: bigint
+    data_tests: [not_null]
+- name: product_category_name_translation
+  description: Static product category translation staged from PostgreSQL through the reference Iceberg table.
+  columns:
+  - name: product_category_name
+    data_type: string
+    data_tests: [not_null, unique]
+  - name: product_category_name_english
+    data_type: string
+  - name: reference_loaded_at
+    data_type: timestamp
+    data_tests: [not_null]

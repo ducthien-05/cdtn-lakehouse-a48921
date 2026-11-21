@@ -1,0 +1,34 @@
+version: 2
+sources:
+- name: olist_bronze
+  schema: bronze
+  description: Append-only CDC events in the lakehouse default catalog. Silver reads explicit snapshot IDs.
+  tables:
+  - name: customers
+  - name: sellers
+  - name: products
+  - name: orders
+  - name: order_items
+  - name: order_payments
+  - name: order_reviews
+- name: olist_reference
+  schema: reference
+  description: Static JDBC reference data staged as Iceberg before dbt builds Silver.
+  tables:
+  - name: product_category_name_translation
+    columns:
+    - name: product_category_name
+    - name: product_category_name_english
+    - name: reference_loaded_at
+- name: olist_silver
+  schema: silver
+  description: Materialized Silver tables already verified before Gold runs.
+  tables:
+  - name: customers
+  - name: sellers
+  - name: products
+  - name: orders
+  - name: order_items
+  - name: order_payments
+  - name: order_reviews
+  - name: product_category_name_translation
