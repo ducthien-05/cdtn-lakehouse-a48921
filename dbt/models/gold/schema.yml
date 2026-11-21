@@ -1,0 +1,693 @@
+version: 2
+models:
+- name: dim_date
+  description: Calendar dimension used by order and review date keys.
+  columns:
+  - name: date_key
+    data_type: int
+    data_tests:
+    - not_null
+    - unique
+  - name: calendar_date
+    data_type: date
+  - name: calendar_year
+    data_type: int
+    data_tests:
+    - not_null
+  - name: calendar_quarter
+    data_type: int
+    data_tests:
+    - not_null
+  - name: calendar_month
+    data_type: int
+    data_tests:
+    - not_null
+  - name: month_name
+    data_type: string
+    data_tests:
+    - not_null
+  - name: week_of_year
+    data_type: int
+    data_tests:
+    - not_null
+  - name: day_of_month
+    data_type: int
+    data_tests:
+    - not_null
+  - name: day_of_week
+    data_type: int
+    data_tests:
+    - not_null
+
+- name: dim_customer
+  description: Current customer dimension from Silver customers.
+  columns:
+  - name: customer_id
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: customer_unique_id
+    data_type: string
+    data_tests:
+    - not_null
+  - name: customer_zip_code_prefix
+    data_type: string
+    data_tests:
+    - not_null
+  - name: customer_city
+    data_type: string
+    data_tests:
+    - not_null
+  - name: customer_state
+    data_type: string
+    data_tests:
+    - not_null
+  - name: customers_bronze_snapshot_id
+    data_type: bigint
+    data_tests:
+    - not_null
+
+- name: dim_seller
+  description: Current seller dimension from Silver sellers.
+  columns:
+  - name: seller_id
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: seller_zip_code_prefix
+    data_type: string
+    data_tests:
+    - not_null
+  - name: seller_city
+    data_type: string
+    data_tests:
+    - not_null
+  - name: seller_state
+    data_type: string
+    data_tests:
+    - not_null
+  - name: sellers_bronze_snapshot_id
+    data_type: bigint
+    data_tests:
+    - not_null
+
+- name: dim_category
+  description: Static category translation dimension.
+  columns:
+  - name: category_key
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: product_category_name
+    data_type: string
+  - name: product_category_name_english
+    data_type: string
+    data_tests:
+    - not_null
+  - name: reference_loaded_at
+    data_type: timestamp
+
+- name: dim_product
+  description: Current product dimension enriched with translated category.
+  columns:
+  - name: product_id
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: category_key
+    data_type: string
+    data_tests:
+    - not_null
+  - name: product_category_name_english
+    data_type: string
+    data_tests:
+    - not_null
+  - name: product_category_name
+    data_type: string
+  - name: product_name_lenght
+    data_type: int
+  - name: product_description_lenght
+    data_type: int
+  - name: product_photos_qty
+    data_type: int
+  - name: product_weight_g
+    data_type: int
+  - name: product_length_cm
+    data_type: int
+  - name: product_height_cm
+    data_type: int
+  - name: product_width_cm
+    data_type: int
+  - name: products_bronze_snapshot_id
+    data_type: bigint
+    data_tests:
+    - not_null
+
+- name: dim_order_status
+  description: Distinct current order statuses and reporting flags.
+  columns:
+  - name: status_key
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: order_status
+    data_type: string
+    data_tests:
+    - not_null
+  - name: is_delivered
+    data_type: boolean
+    data_tests:
+    - not_null
+  - name: is_cancelled
+    data_type: boolean
+    data_tests:
+    - not_null
+  - name: is_unavailable
+    data_type: boolean
+    data_tests:
+    - not_null
+
+- name: dim_payment_type
+  description: Distinct payment type dimension.
+  columns:
+  - name: payment_type_key
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: payment_type
+    data_type: string
+    data_tests:
+    - not_null
+
+- name: fct_order_items
+  description: One row per current order item.
+  columns:
+  - name: order_item_key
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: order_id
+    data_type: string
+    data_tests:
+    - not_null
+  - name: order_item_id
+    data_type: int
+    data_tests:
+    - not_null
+  - name: product_id
+    data_type: string
+    data_tests:
+    - not_null
+  - name: seller_id
+    data_type: string
+    data_tests:
+    - not_null
+  - name: order_purchase_date_key
+    data_type: int
+    data_tests:
+    - not_null
+  - name: item_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: freight_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: orders_bronze_snapshot_id
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: order_items_bronze_snapshot_id
+    data_type: bigint
+    data_tests:
+    - not_null
+
+- name: fct_order_payments
+  description: One row per current order payment sequence.
+  columns:
+  - name: payment_key
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: order_id
+    data_type: string
+    data_tests:
+    - not_null
+  - name: payment_sequential
+    data_type: int
+    data_tests:
+    - not_null
+  - name: payment_type_key
+    data_type: string
+    data_tests:
+    - not_null
+  - name: payment_installments
+    data_type: int
+    data_tests:
+    - not_null
+  - name: payment_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: order_payments_bronze_snapshot_id
+    data_type: bigint
+    data_tests:
+    - not_null
+
+- name: fct_order_reviews
+  description: One row per current (review_id, order_id).
+  columns:
+  - name: review_key
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: review_id
+    data_type: string
+    data_tests:
+    - not_null
+  - name: order_id
+    data_type: string
+    data_tests:
+    - not_null
+  - name: review_score
+    data_type: int
+    data_tests:
+    - not_null
+  - name: review_creation_date_key
+    data_type: int
+    data_tests:
+    - not_null
+  - name: review_answer_date_key
+    data_type: int
+    data_tests:
+    - not_null
+  - name: has_comment
+    data_type: boolean
+    data_tests:
+    - not_null
+  - name: answer_days
+    data_type: int
+  - name: order_reviews_bronze_snapshot_id
+    data_type: bigint
+    data_tests:
+    - not_null
+
+- name: fct_orders
+  description: One row per current order; child facts are pre-aggregated before joining.
+  columns:
+  - name: order_id
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: customer_id
+    data_type: string
+    data_tests:
+    - not_null
+  - name: customer_state
+    data_type: string
+    data_tests:
+    - not_null
+  - name: status_key
+    data_type: string
+    data_tests:
+    - not_null
+  - name: order_status
+    data_type: string
+    data_tests:
+    - not_null
+  - name: order_purchase_date_key
+    data_type: int
+    data_tests:
+    - not_null
+  - name: estimated_delivery_date_key
+    data_type: int
+    data_tests:
+    - not_null
+  - name: order_purchase_month
+    data_type: date
+    data_tests:
+    - not_null
+  - name: order_item_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: item_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: freight_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: order_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: payment_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: payment_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: review_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: average_review_score
+    data_type: decimal(4,2)
+  - name: is_delivered
+    data_type: boolean
+    data_tests:
+    - not_null
+  - name: is_cancelled
+    data_type: boolean
+    data_tests:
+    - not_null
+  - name: is_unavailable
+    data_type: boolean
+    data_tests:
+    - not_null
+  - name: is_delivered_on_time
+    data_type: boolean
+    data_tests:
+    - not_null
+  - name: purchase_to_carrier_days
+    data_type: int
+  - name: purchase_to_customer_days
+    data_type: int
+  - name: carrier_to_customer_days
+    data_type: int
+  - name: estimated_delivery_days
+    data_type: int
+  - name: orders_bronze_snapshot_id
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: order_items_bronze_snapshot_id
+    data_type: bigint
+    data_tests:
+    - not_null
+
+- name: mart_orders_monthly
+  description: Monthly order count and value mart for Q01.
+  columns:
+  - name: order_purchase_month
+    data_type: date
+    data_tests:
+    - not_null
+    - unique
+  - name: order_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: order_item_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: item_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: freight_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: order_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: average_order_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+
+- name: mart_orders_by_state
+  description: Order count and value by customer state for Q02.
+  columns:
+  - name: customer_state
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: order_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: order_item_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: item_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: freight_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: order_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: average_order_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+
+- name: mart_order_status
+  description: Order distribution and share for Q04.
+  columns:
+  - name: order_status
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: order_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: order_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: average_order_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: order_share
+    data_type: decimal(9,6)
+    data_tests:
+    - not_null
+
+- name: mart_product_sales
+  description: Product-level item and sales mart for Q05.
+  columns:
+  - name: product_id
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: product_category_name_english
+    data_type: string
+    data_tests:
+    - not_null
+  - name: item_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: order_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: item_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: freight_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: sales_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+
+- name: mart_category_share_monthly
+  description: Monthly category share mart for Q06.
+  columns:
+  - name: order_purchase_month
+    data_type: date
+    data_tests:
+    - not_null
+  - name: category_key
+    data_type: string
+    data_tests:
+    - not_null
+  - name: product_category_name_english
+    data_type: string
+    data_tests:
+    - not_null
+  - name: sales_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: category_share
+    data_type: decimal(9,6)
+    data_tests:
+    - not_null
+
+- name: mart_seller_sales
+  description: Seller-level item and sales mart for Q08.
+  columns:
+  - name: seller_id
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: seller_city
+    data_type: string
+    data_tests:
+    - not_null
+  - name: seller_state
+    data_type: string
+    data_tests:
+    - not_null
+  - name: item_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: order_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: item_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: freight_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: sales_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+
+- name: mart_customer_value
+  description: Customer order value mart for Q09.
+  columns:
+  - name: customer_id
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: customer_state
+    data_type: string
+    data_tests:
+    - not_null
+  - name: order_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: customer_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: average_order_value
+    data_type: decimal(18,2)
+    data_tests:
+    - not_null
+  - name: delivered_order_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: first_order_timestamp
+    data_type: timestamp_ntz
+    data_tests:
+    - not_null
+  - name: last_order_timestamp
+    data_type: timestamp_ntz
+    data_tests:
+    - not_null
+
+- name: mart_delivery_performance
+  description: Monthly delivered and on-time performance mart for Q10.
+  columns:
+  - name: order_purchase_month
+    data_type: date
+    data_tests:
+    - not_null
+    - unique
+  - name: order_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: delivered_order_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: on_time_order_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: on_time_rate
+    data_type: decimal(9,6)
+  - name: average_purchase_to_carrier_days
+    data_type: decimal(12,2)
+  - name: average_purchase_to_customer_days
+    data_type: decimal(12,2)
+
+- name: mart_delivery_stages
+  description: Monthly delivery stage duration mart for Q11.
+  columns:
+  - name: order_purchase_month
+    data_type: date
+    data_tests:
+    - not_null
+    - unique
+  - name: average_purchase_to_carrier_days
+    data_type: decimal(12,2)
+  - name: average_carrier_to_customer_days
+    data_type: decimal(12,2)
+  - name: average_purchase_to_customer_days
+    data_type: decimal(12,2)
+  - name: average_estimated_delivery_days
+    data_type: decimal(12,2)
+  - name: order_count
+    data_type: bigint
+    data_tests:
+    - not_null
+
+- name: mart_delivery_review
+  description: Review score by delivery bucket for Q12.
+  columns:
+  - name: delivery_bucket
+    data_type: string
+    data_tests:
+    - not_null
+    - unique
+  - name: reviewed_order_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: review_count
+    data_type: bigint
+    data_tests:
+    - not_null
+  - name: average_review_score
+    data_type: decimal(4,2)
+  - name: average_review_answer_days
+    data_type: decimal(12,2)
