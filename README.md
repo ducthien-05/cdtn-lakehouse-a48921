@@ -8,6 +8,8 @@ Dự án chạy local trên Ubuntu/WSL2 bằng Docker Compose. Spark phụ trác
 
 ## 1. Kiến trúc
 
+![Kiến trúc Olist Data Lakehouse](image/architecture.png)
+
 ```mermaid
 flowchart LR
     CSV["8 CSV Olist"] --> PG[("PostgreSQL nguồn")]
